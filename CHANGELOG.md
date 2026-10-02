@@ -1,5 +1,38 @@
 # Changelog
 
+## 2.0.0
+
+- Restructured the app as a proper Flask application. `app.py` is now
+  an application factory, the code lives in an `intake/` package, the
+  config, secrets, and database files live in Flask's `instance/`
+  folder, and the maintenance commands are Flask commands run with
+  `flask --app app <command>`. Settings that used "application" are
+  renamed to "submission".
+- Replaced gunicorn with waitress and renamed the systemd units to
+  `wbzp-intake*`. The install scripts no longer start services, so
+  start them with `systemctl`.
+- Added database migrations with automatic backups. Failed
+  submissions are now saved and retried.
+- Submissions can now go to an email address as well as a Zulip
+  channel. Destinations live in `instance/destinations.yaml`, and
+  `install.sh` runs the new `configure-email.sh` and
+  `configure-zulip.sh` to set them up.
+- Added optional alert emails for failures and bounces, SMTP setup from
+  a list of providers, an hourly bounce mailbox check for email
+  destinations, and a `test-email` command to check your settings.
+- Zulip account checks now use the Zulip API instead of
+  `manage.py shell`, so the app no longer has to run on the Zulip
+  server and the bot only needs to see members' email addresses. Zulip
+  doesn't let bots read invitations, so pending invites are detected
+  only if you set `zulip_lookup` to `manage_py`.
+- Replaced `application-fields.json` with one YAML file per form in
+  `forms/`. Each form needs `routing_rules`, which pick a destination
+  based on answers, and a required `submitter_email` field.
+- Changed the submission URL from `/apply` to `/intake/<template-name>`.
+- Renamed the form's CSS classes, IDs, and data attributes to start
+  with `wbzp-intake-`.
+- New and edited forms are picked up without a restart.
+
 ## 1.0.0
 
 - Replaced `conditional_options` with nested field definitions directly

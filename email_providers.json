@@ -1,0 +1,131 @@
+{
+    "flows": [
+        {
+            "id": "account",
+            "label": "An email account (Google, Yahoo, Fastmail, Purelymail)",
+            "bounces": "imap",
+            "bounce_note": ""
+        },
+        {
+            "id": "service",
+            "label": "A transactional email service (Mailgun, SendGrid, Amazon SES, Postmark, Resend)",
+            "bounces": "external",
+            "bounce_note": "Bounces show up in your provider's dashboard and webhooks, so this app won't check for them. Watch for them there."
+        }
+    ],
+    "providers": [
+        {
+            "id": "google",
+            "flow": "account",
+            "name": "Google (Gmail or Google Workspace)",
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "imap_host": "imap.gmail.com",
+            "login_prompt": "What is your full Google address?",
+            "password_prompt": "What is your app password? (create one at https://myaccount.google.com/apppasswords, which needs 2-Step Verification)"
+        },
+        {
+            "id": "yahoo",
+            "flow": "account",
+            "name": "Yahoo Mail",
+            "smtp_host": "smtp.mail.yahoo.com",
+            "smtp_port": 465,
+            "smtp_security": "ssl",
+            "imap_host": "imap.mail.yahoo.com",
+            "login_prompt": "What is your full Yahoo address?",
+            "password_prompt": "What is your app password? (generate one in your Yahoo account security settings)"
+        },
+        {
+            "id": "fastmail",
+            "flow": "account",
+            "name": "Fastmail",
+            "smtp_host": "smtp.fastmail.com",
+            "smtp_port": 465,
+            "smtp_security": "ssl",
+            "imap_host": "imap.fastmail.com",
+            "login_prompt": "What is your full Fastmail address?",
+            "password_prompt": "What is your app password? (create one in your Fastmail settings, since your regular password won't work)"
+        },
+        {
+            "id": "purelymail",
+            "flow": "account",
+            "name": "Purelymail",
+            "smtp_host": "smtp.purelymail.com",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "imap_host": "imap.purelymail.com",
+            "login_prompt": "What is your full Purelymail address?",
+            "password_prompt": "What is your password? (use an app password if you have two-factor authentication on)"
+        },
+        {
+            "id": "mailgun_us",
+            "flow": "service",
+            "name": "Mailgun (US region)",
+            "smtp_host": "smtp.mailgun.org",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "login_prompt": "What is the SMTP login for your sending domain? (for example postmaster@mg.example.com, or one you created)",
+            "password_prompt": "What is the SMTP password for that login?"
+        },
+        {
+            "id": "mailgun_eu",
+            "flow": "service",
+            "name": "Mailgun (EU region)",
+            "smtp_host": "smtp.eu.mailgun.org",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "login_prompt": "What is the SMTP login for your sending domain? (for example postmaster@mg.example.com, or one you created)",
+            "password_prompt": "What is the SMTP password for that login?"
+        },
+        {
+            "id": "sendgrid",
+            "flow": "service",
+            "name": "SendGrid",
+            "smtp_host": "smtp.sendgrid.net",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "smtp_user": "apikey",
+            "password_prompt": "What is your API key? (it needs Mail Send permission)",
+            "from_required": true,
+            "note": "The From address must be a sender or domain you've verified in SendGrid."
+        },
+        {
+            "id": "ses",
+            "flow": "service",
+            "name": "Amazon SES",
+            "smtp_host": "email-smtp.{region}.amazonaws.com",
+            "region_prompt": "Which AWS region does your SES account send from? (for example us-east-1)",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "login_prompt": "What is your SES SMTP username?",
+            "password_prompt": "What is your SES SMTP password? (not your AWS secret access key)",
+            "from_required": true,
+            "note": "The From address must be an identity you've verified in SES."
+        },
+        {
+            "id": "postmark",
+            "flow": "service",
+            "name": "Postmark",
+            "smtp_host": "smtp.postmarkapp.com",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "from_required": true,
+            "note": "The From address must match a sender signature or domain you've verified in Postmark.",
+            "login_prompt": "What is your SMTP access key? (create an SMTP token in your Postmark server settings)",
+            "password_prompt": "What is the SMTP secret key for that token?"
+        },
+        {
+            "id": "resend",
+            "flow": "service",
+            "name": "Resend",
+            "smtp_host": "smtp.resend.com",
+            "smtp_port": 587,
+            "smtp_security": "starttls",
+            "smtp_user": "resend",
+            "password_prompt": "What is your API key?",
+            "from_required": true,
+            "note": "The From address must be on a domain you've verified in Resend."
+        }
+    ]
+}

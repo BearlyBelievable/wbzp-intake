@@ -12,36 +12,18 @@ if ! command -v systemctl &>/dev/null; then
     exit 1
 fi
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICE_NAME=web-zulip-application-form
-SERVICE_UNIT_PATH=/etc/systemd/system/$SERVICE_NAME.service
-CHECK_PENDING_UNIT_NAME=web-zulip-application-form-check-pending
-CHECK_PENDING_SERVICE_UNIT_PATH=/etc/systemd/system/$CHECK_PENDING_UNIT_NAME.service
-CHECK_PENDING_TIMER_UNIT_PATH=/etc/systemd/system/$CHECK_PENDING_UNIT_NAME.timer
-SECRETS_FILE="$APP_DIR/secrets.conf"
-CONFIG_FILE="$APP_DIR/config.conf"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 echo "App root: $APP_DIR"
-
-get_conf_value() {
-    local key="$1" file="$2" section
-    [ -f "$file" ] || return 0
-    section=$([ "$file" = "$SECRETS_FILE" ] && echo secrets || echo config)
-    python3 "$APP_DIR/config_tool.py" get "$file" "$section" "$key"
-}
-
-confirmed() {
-    [ "$1" = "y" ] || [ "$1" = "Y" ]
-}
 
 confirm_then() {
     local prompt="$1" confirm
     shift
-    read -r -p "$prompt " confirm
+    ask -r -p "$prompt " confirm
     confirmed "$confirm" && "$@"
 }
 
-detect_site_confs() {
+detect_configured_site_confs() {
     local kind="$1" f
     case "$kind" in
         nginx)
@@ -67,12 +49,12 @@ remove_snippet_block() {
     start_line=$(grep -n -F -x -f "$snippet_file" "$site_conf" | head -1 | cut -d: -f1)
     if [ -z "$start_line" ]; then
         echo "Couldn't find an exact match for the $kind snippet in $site_conf."
-        echo "Remove the /apply block from it if it's still there."
+        echo "Remove the /intake block from it if it's still there."
         return
     fi
 
-    mkdir -p "$APP_DIR/reverse-proxy-backups"
-    backup="$APP_DIR/reverse-proxy-backups/$(basename "$site_conf").bak.$(date +%s)"
+    mkdir -p "$SITE_CONFIG_BACKUP_DIR"
+    backup="$SITE_CONFIG_BACKUP_DIR/$(basename "$site_conf").bak.$(date +%s)"
     cp "$site_conf" "$backup"
 
     sed -i "${start_line},$((start_line + snippet_lines - 1))d" "$site_conf"
@@ -80,7 +62,7 @@ remove_snippet_block() {
     echo "--- Proposed change to $site_conf ---"
     diff -u "$backup" "$site_conf" || true
     echo "--------------------------------------"
-    read -r -p "Apply this change and reload $kind? [y/N] " confirm
+    ask -r -p "Apply this change and reload $kind? [y/N] " confirm
     if ! confirmed "$confirm"; then
         cp "$backup" "$site_conf"
         echo "Reverted. $site_conf left unchanged. Backup kept at $backup."
@@ -117,7 +99,7 @@ remove_snippet_block() {
 }
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "No config.conf found here. Nothing looks installed from this checkout."
+    echo "No instance/config.conf found here. Nothing looks installed from this checkout."
     exit 0
 fi
 
@@ -126,31 +108,38 @@ SITE_ROOT=$(get_conf_value site_root "$CONFIG_FILE")
 
 echo
 echo "This will:"
-echo "  - Stop and remove the $SERVICE_NAME and $CHECK_PENDING_UNIT_NAME systemd units."
+echo "  - Stop and remove the $SERVICE_NAME, $CHECK_PENDING_UNIT_NAME, and"
+echo "    $CHECK_BOUNCES_UNIT_NAME systemd units."
 echo "  - Remove the generated application form files from $SITE_ROOT."
 echo "  - Look for and offer to remove reverse proxy wiring and leftovers from"
 echo "    older versions of this app."
 echo "  - Remove this app's .venv."
-echo "It will ask separately before touching config.conf, secrets.conf,"
-echo "applications.db, or the checkout itself."
-read -r -p "Continue? [y/N] " confirm
+echo "It will ask separately before touching instance/config.conf,"
+echo "instance/secrets.conf, instance/submissions.db, or the checkout itself."
+ask -r -p "Continue? [y/N] " confirm
 if ! confirmed "$confirm"; then
     exit 0
 fi
 
 echo
 echo "Stopping services..."
-for unit in "$SERVICE_NAME" "$CHECK_PENDING_UNIT_NAME.timer" "$CHECK_PENDING_UNIT_NAME.service"; do
+for unit in "$SERVICE_NAME" "$CHECK_PENDING_UNIT_NAME.timer" "$CHECK_PENDING_UNIT_NAME.service" \
+    "$CHECK_BOUNCES_UNIT_NAME.timer" "$CHECK_BOUNCES_UNIT_NAME.service" \
+    web-zulip-application-form web-zulip-application-form-check-pending.timer web-zulip-application-form-check-pending.service; do
     systemctl disable --now "$unit" 2>/dev/null || true
 done
-rm -f "$SERVICE_UNIT_PATH" "$CHECK_PENDING_SERVICE_UNIT_PATH" "$CHECK_PENDING_TIMER_UNIT_PATH"
+rm -f "$SERVICE_UNIT_PATH" "$CHECK_PENDING_SERVICE_UNIT_PATH" "$CHECK_PENDING_TIMER_UNIT_PATH" \
+    "$CHECK_BOUNCES_SERVICE_UNIT_PATH" "$CHECK_BOUNCES_TIMER_UNIT_PATH"
+rm -f /etc/systemd/system/web-zulip-application-form.service \
+    /etc/systemd/system/web-zulip-application-form-check-pending.service \
+    /etc/systemd/system/web-zulip-application-form-check-pending.timer
 systemctl daemon-reload
 echo "Services stopped and unit files removed."
 
 if [ -n "$SITE_ROOT" ]; then
     echo
     echo "Removing generated files from $SITE_ROOT..."
-    rm -f "$SITE_ROOT/data/application-fields.json"
+    rm -rf "$SITE_ROOT/data/templates"
 
     if [ "$SITE_KIND" = "Pelican" ] && [ -f "$SITE_ROOT/pelicanconf.py" ]; then
         TEMPLATE_OVERRIDES_DIR=$(sed -n -E \
@@ -161,18 +150,24 @@ if [ -n "$SITE_ROOT" ]; then
             *) TEMPLATE_OVERRIDES_DIR="$SITE_ROOT/${TEMPLATE_OVERRIDES_DIR:-templates}" ;;
         esac
 
-        rm -f "$SITE_ROOT/content/extra/js/application-form.js"
-        rm -f "$SITE_ROOT/content/extra/css/application-form.css"
-        rm -f "$TEMPLATE_OVERRIDES_DIR/application-form.html"
+        rm -f "$SITE_ROOT/content/extra/js/wbzp-intake-form.js"
+        rm -f "$SITE_ROOT/content/extra/css/wbzp-intake-form.css"
 
-        if [ -f "$TEMPLATE_OVERRIDES_DIR/application.html" ]; then
-            read -r -p "Remove $TEMPLATE_OVERRIDES_DIR/application.html too? It may have your own theme customizations. [y/N] " confirm
-            if confirmed "$confirm"; then
-                rm -f "$TEMPLATE_OVERRIDES_DIR/application.html"
+        for template_file in "$APP_DIR"/forms/*.yaml; do
+            name=$(basename "$template_file" .yaml)
+            rm -f "$TEMPLATE_OVERRIDES_DIR/$name-form.html"
+            if [ -f "$TEMPLATE_OVERRIDES_DIR/$name.html" ]; then
+                ask -r -p "Remove $TEMPLATE_OVERRIDES_DIR/$name.html too? It may have your own theme customizations. [y/N] " confirm
+                if confirmed "$confirm"; then
+                    rm -f "$TEMPLATE_OVERRIDES_DIR/$name.html"
+                fi
             fi
-        fi
+        done
     else
-        rm -f "$SITE_ROOT/application-form.html" "$SITE_ROOT/application-form.js" "$SITE_ROOT/application-form.css"
+        rm -f "$SITE_ROOT"/*-form.html "$SITE_ROOT/wbzp-intake-form.js" "$SITE_ROOT/wbzp-intake-form.css"
+        if [ "$SITE_ROOT" = "$DEFAULT_OUTPUT_DIR" ]; then
+            rmdir "$DEFAULT_OUTPUT_DIR" 2>/dev/null || true
+        fi
     fi
     echo "Done."
 
@@ -184,6 +179,27 @@ if [ -n "$SITE_ROOT" ]; then
         echo "Removed $SITE_ROOT/data/application-limits.json."
     fi
 
+    if [ -f "$SITE_ROOT/data/application-fields.json" ]; then
+        rm -f "$SITE_ROOT/data/application-fields.json"
+        echo "Removed the old single-file $SITE_ROOT/data/application-fields.json."
+    fi
+
+    if [ "$SITE_KIND" = "Pelican" ]; then
+        if [ -f "$SITE_ROOT/content/extra/js/application-form.js" ] || [ -f "$SITE_ROOT/content/extra/css/application-form.css" ]; then
+            rm -f "$SITE_ROOT/content/extra/js/application-form.js" "$SITE_ROOT/content/extra/css/application-form.css"
+            echo "Removed the old application-form.js/application-form.css."
+        fi
+        if [ -n "$TEMPLATE_OVERRIDES_DIR" ] && [ -f "$TEMPLATE_OVERRIDES_DIR/application-form.html" ]; then
+            rm -f "$TEMPLATE_OVERRIDES_DIR/application-form.html"
+            echo "Removed the old $TEMPLATE_OVERRIDES_DIR/application-form.html."
+        fi
+    else
+        if [ -f "$SITE_ROOT/application-form.html" ] || [ -f "$SITE_ROOT/application-form.js" ] || [ -f "$SITE_ROOT/application-form.css" ]; then
+            rm -f "$SITE_ROOT/application-form.html" "$SITE_ROOT/application-form.js" "$SITE_ROOT/application-form.css"
+            echo "Removed the old application-form.html/application-form.js/application-form.css."
+        fi
+    fi
+
     if [ "$SITE_KIND" = "Pelican" ] && [ -f "$SITE_ROOT/pelicanconf.py" ] \
         && grep -q "JINJA_GLOBALS = {'application_fields': APPLICATION_FIELDS}" "$SITE_ROOT/pelicanconf.py"; then
         echo
@@ -192,10 +208,10 @@ if [ -n "$SITE_ROOT" ]; then
         echo
         grep -n -B2 "JINJA_GLOBALS = {'application_fields': APPLICATION_FIELDS}" "$SITE_ROOT/pelicanconf.py"
         echo
-        read -r -p "Remove those lines from pelicanconf.py? [y/N] " confirm
+        ask -r -p "Remove those lines from pelicanconf.py? [y/N] " confirm
         if confirmed "$confirm"; then
-            mkdir -p "$APP_DIR/upgrade-backups"
-            backup="$APP_DIR/upgrade-backups/pelicanconf.py.bak.$(date +%s)"
+            mkdir -p "$SITE_CONFIG_BACKUP_DIR"
+            backup="$SITE_CONFIG_BACKUP_DIR/pelicanconf.py.bak.$(date +%s)"
             cp "$SITE_ROOT/pelicanconf.py" "$backup"
             end_line=$(grep -n "JINJA_GLOBALS = {'application_fields': APPLICATION_FIELDS}" "$SITE_ROOT/pelicanconf.py" | head -1 | cut -d: -f1)
             start_line=$(grep -n "^with open(os.path.join(os.path.dirname(__file__), 'data', 'application-fields.json')) as f:" "$SITE_ROOT/pelicanconf.py" | head -1 | cut -d: -f1)
@@ -217,7 +233,7 @@ for kind in nginx apache caddy; do
         [ -z "$site_conf" ] && continue
         echo "Found a $kind config still proxying to 127.0.0.1:8793: $site_conf"
         remove_snippet_block "$kind" "$APP_DIR/deploy/reverse-proxy/$kind.conf" "$site_conf"
-    done < <(detect_site_confs "$kind")
+    done < <(detect_configured_site_confs "$kind")
 done
 
 rm -rf "$APP_DIR/.venv"
@@ -225,14 +241,29 @@ echo
 echo "Removed .venv."
 
 echo
-confirm_then "Delete applications.db? This is your local record of pending and held applications. [y/N]" \
-    rm -f "$APP_DIR/applications.db"
+delete_submissions_databases() {
+    local db suffix
+    for db in "$INSTANCE_DIR/submissions.db" "$APP_DIR/submissions.db" "$APP_DIR/applications.db"; do
+        for suffix in "" -wal -shm; do
+            rm -f "$db$suffix"
+        done
+    done
+    rm -f "$INSTANCE_DIR"/backups/submissions.db.*.bak
+}
 
-confirm_then "Delete config.conf and secrets.conf? [y/N]" \
-    rm -f "$CONFIG_FILE" "$SECRETS_FILE"
+confirm_then "Delete the submissions database and its backups (instance/submissions.db, instance/backups/, and the applications.db or submissions.db that older versions kept in the app folder)? This is your local record of submissions in progress, awaiting signup, or failed. [y/N]" \
+    delete_submissions_databases
 
-confirm_then "Delete $APP_DIR/reverse-proxy-backups/ and $APP_DIR/upgrade-backups/? [y/N]" \
-    rm -rf "$APP_DIR/reverse-proxy-backups" "$APP_DIR/upgrade-backups"
+confirm_then "Delete instance/config.conf, instance/secrets.conf, and instance/destinations.yaml? [y/N]" \
+    rm -f "$CONFIG_FILE" "$SECRETS_FILE" "$DESTINATIONS_FILE"
+
+delete_site_config_backups() {
+    rm -rf "$SITE_CONFIG_BACKUP_DIR" "$APP_DIR/reverse-proxy-backups" "$APP_DIR/upgrade-backups"
+    rmdir "$INSTANCE_DIR/backups" 2>/dev/null || true
+}
+
+confirm_then "Delete the backups of your site and reverse proxy config (instance/backups/site-config/, and the reverse-proxy-backups/ and upgrade-backups/ that older versions kept in the app folder)? [y/N]" \
+    delete_site_config_backups
 
 echo
 echo "Uninstall complete. The checkout at $APP_DIR itself is left in place."

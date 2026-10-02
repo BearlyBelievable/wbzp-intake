@@ -2,9 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
-secrets.conf
-config.conf
-/data/
-/reverse-proxy-backups/
-/upgrade-backups/
-applications.db
+/instance/
+/output/
+test_submissions.db

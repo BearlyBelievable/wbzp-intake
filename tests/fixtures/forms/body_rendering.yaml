@@ -1,0 +1,27 @@
+routing_rules:
+  - destination: default
+fields:
+  - name: submitter_email
+    type: email
+    required: true
+    label: Your email
+    note:
+  - name: newsletter
+    type: boolean
+    required: false
+    label: Newsletter
+    note:
+  - name: pick
+    type: multiselect
+    required: false
+    label: Pick
+    note:
+    options:
+      Only one:
+      Two_words:
+      Third:
+  - name: count
+    type: number
+    required: false
+    label: Count
+    note:

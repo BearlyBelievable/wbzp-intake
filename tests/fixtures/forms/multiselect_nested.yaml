@@ -1,0 +1,21 @@
+routing_rules:
+  - destination: office
+fields:
+  - name: submitter_email
+    type: email
+    required: true
+    label: Your email
+    note:
+  - name: topics
+    type: multiselect
+    required: false
+    label: Topics
+    note:
+    options:
+      Billing:
+      Other:
+        name: other_text
+        type: text
+        required: true
+        label: Which other topic
+        note:

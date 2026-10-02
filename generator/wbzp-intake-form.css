@@ -1,0 +1,191 @@
+.wbzp-intake-form {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.wbzp-intake-form .wbzp-intake-btn {
+    margin-top: 0;
+}
+
+.wbzp-intake-form input[type='text'],
+.wbzp-intake-form input[type='email'],
+.wbzp-intake-form input[type='number'],
+.wbzp-intake-form select,
+.wbzp-intake-form textarea {
+    min-height: 44px;
+}
+
+.wbzp-intake-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wbzp-intake-field[hidden] {
+    display: none;
+}
+
+.wbzp-intake-field-companion {
+    margin-left: 16px;
+}
+
+.wbzp-intake-field-fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    min-width: 0;
+}
+
+.wbzp-intake-field-fieldset legend {
+    margin-bottom: 8px;
+}
+
+.wbzp-intake-required-marker {
+    color: var(--wbzp-intake-error-color, #dc2626);
+}
+
+.wbzp-intake-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-self: flex-start;
+    gap: 8px 20px;
+    padding: 0 16px;
+}
+
+.wbzp-intake-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    align-self: flex-start;
+    padding: 0 16px;
+}
+
+.wbzp-intake-radio-group label,
+.wbzp-intake-checkbox-group label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    font-weight: 400;
+}
+
+.wbzp-intake-radio-group input,
+.wbzp-intake-checkbox-group input {
+    margin: 0;
+}
+
+.wbzp-intake-field-note {
+    margin-bottom: 0;
+    padding: 0;
+    border-radius: 6px;
+}
+
+.wbzp-intake-field-note summary,
+.wbzp-intake-field-note p {
+    color: inherit;
+}
+
+.wbzp-intake-field-note summary {
+    margin: 0;
+    padding: 10px 14px;
+    font-size: 0.9375rem;
+    cursor: pointer;
+}
+
+.wbzp-intake-field-note:not([open]) summary {
+    margin-bottom: 0;
+    padding-bottom: 10px;
+}
+
+.wbzp-intake-field-note summary::after {
+    border-color: currentColor;
+}
+
+.wbzp-intake-field-note-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+}
+
+.wbzp-intake-field-note-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.wbzp-intake-field-note p {
+    margin: 0;
+    padding: 0 14px 10px;
+    font-size: 0.875rem;
+}
+
+.wbzp-intake-field-note--info {
+    background: var(--wbzp-intake-note-info-bg, #dbeafe);
+    color: var(--wbzp-intake-note-info-text, #1e3a5f);
+}
+
+.wbzp-intake-field-note--caution {
+    background: var(--wbzp-intake-note-caution-bg, #fde68a);
+    color: var(--wbzp-intake-note-caution-text, #6d5b17);
+}
+
+.wbzp-intake-field-note--warning {
+    background: var(--wbzp-intake-note-warning-bg, #fbdcdc);
+    color: var(--wbzp-intake-note-warning-text, #7a1f1f);
+}
+
+.wbzp-intake-message {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+}
+
+.wbzp-intake-message.is-success {
+    background: color-mix(in srgb, var(--wbzp-intake-success-color, #16a34a) 15%, transparent);
+    color: var(--wbzp-intake-success-color, #16a34a);
+}
+
+.wbzp-intake-message.is-error {
+    background: color-mix(in srgb, var(--wbzp-intake-error-color, #dc2626) 15%, transparent);
+    color: var(--wbzp-intake-error-color, #dc2626);
+}
+
+.wbzp-intake-field.has-error input[type='text'],
+.wbzp-intake-field.has-error input[type='email'],
+.wbzp-intake-field.has-error input[type='number'],
+.wbzp-intake-field.has-error select,
+.wbzp-intake-field.has-error textarea {
+    border-color: var(--wbzp-intake-error-color, #dc2626);
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--wbzp-intake-error-color, #dc2626) 30%, transparent),
+        0 0 8px 2px color-mix(in srgb, var(--wbzp-intake-error-color, #dc2626) 35%, transparent);
+}
+
+.wbzp-intake-field.has-error .wbzp-intake-radio-group,
+.wbzp-intake-field.has-error .wbzp-intake-checkbox-group {
+    box-shadow:
+        0 0 0 2px var(--wbzp-intake-error-color, #dc2626),
+        0 0 8px 2px color-mix(in srgb, var(--wbzp-intake-error-color, #dc2626) 40%, transparent);
+}
+
+.wbzp-intake-char-counter {
+    margin: 0;
+    font-size: 0.8125rem;
+}
+
+.wbzp-intake-char-counter:empty {
+    display: none;
+}
+
+.wbzp-intake-char-counter.is-near-limit {
+    color: var(--wbzp-intake-warn-color, #d97706);
+}
+
+.wbzp-intake-char-counter.is-at-limit {
+    color: var(--wbzp-intake-error-color, #dc2626);
+}

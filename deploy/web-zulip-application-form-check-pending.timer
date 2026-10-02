@@ -1,9 +1,0 @@
-[Unit]
-Description=Daily check of pending web-zulip-application-form applications
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target

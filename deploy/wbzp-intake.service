@@ -1,0 +1,21 @@
+[Unit]
+Description=wbzp-intake backend
+After=network.target
+
+[Service]
+Type=simple
+User=__RUN_AS_USER__
+Group=__RUN_AS_USER__
+WorkingDirectory=__APP_ROOT__
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=__APP_ROOT__/instance
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=__APP_ROOT__/.venv/bin/flask --app app serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

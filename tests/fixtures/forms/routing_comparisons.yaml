@@ -1,0 +1,30 @@
+routing_rules:
+  - destination: low
+    trigger_field_name: count
+    condition: "<=10"
+  - destination: high
+    trigger_field_name: count
+    condition: ">=100"
+  - destination: notfifty
+    trigger_field_name: count
+    condition: "!=50"
+  - destination: subscribers
+    trigger_field_name: subscribe
+    condition: [true]
+  - destination: default
+fields:
+  - name: submitter_email
+    type: email
+    required: true
+    label: Your email
+    note:
+  - name: count
+    type: number
+    required: false
+    label: How many
+    note:
+  - name: subscribe
+    type: boolean
+    required: false
+    label: Subscribe
+    note:

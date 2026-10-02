@@ -1,0 +1,39 @@
+routing_rules:
+  - destination: office
+fields:
+  - name: submitter_email
+    type: email
+    required: true
+    label: Your email
+    note:
+  - name: topic
+    type: select
+    required: true
+    label: Topic
+    note:
+    options:
+      Billing:
+      Other:
+        name: other_details
+        type: text
+        required: true
+        label: Details
+        note:
+  - name: subscribe
+    type: boolean
+    required: false
+    label: Subscribe to updates
+    note:
+  - name: channels
+    type: multiselect
+    required: false
+    label: Channels
+    note:
+    options:
+      Email:
+      SMS:
+  - name: message
+    type: textarea
+    required: false
+    label: Message
+    note:

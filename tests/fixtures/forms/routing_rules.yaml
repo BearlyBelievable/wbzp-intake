@@ -1,0 +1,49 @@
+routing_rules:
+  - destination: youth
+    trigger_field_name: age
+    condition: "<18"
+  - destination: senior
+    trigger_field_name: age
+    condition: ">64"
+  - destination: answer
+    trigger_field_name: age
+    condition: "=42"
+  - destination: press
+    trigger_field_name: topic
+    condition: [Press, Legal]
+  - destination: radio
+    trigger_field_name: channels
+    condition: [Radio]
+  - destination: general
+    trigger_field_name: topic
+    condition: [Support]
+  - destination: default
+fields:
+  - name: submitter_email
+    type: email
+    required: true
+    label: Your email
+    note:
+  - name: age
+    type: number
+    required: true
+    label: Age
+    note:
+  - name: topic
+    type: select
+    required: false
+    label: Topic
+    note:
+    options:
+      Sales:
+      Support:
+      Press:
+      Legal:
+  - name: channels
+    type: multiselect
+    required: false
+    label: Channels
+    note:
+    options:
+      TV:
+      Radio:

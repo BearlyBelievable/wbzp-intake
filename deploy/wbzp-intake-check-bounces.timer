@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly check of the wbzp-intake bounce mailbox
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

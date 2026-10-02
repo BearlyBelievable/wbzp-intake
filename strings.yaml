@@ -1,0 +1,16 @@
+common:
+  unknown_form: "This form isn't available."
+  verification_failed: "Verification failed. Please try again."
+  invalid_answers: "Please check your answers and try again."
+  submission_failed: "Something went wrong submitting the form. We've saved your answers and are looking into it. There's no need to resubmit."
+  rate_limited: "Too many submissions recently. Please wait before trying again."
+  server_busy: "The server is busy right now. Please try again in a moment."
+  server_error: "Something went wrong on our end. Please try again later."
+
+zulip:
+  registered: "That email address can't be used."
+  invited: "That email has already been invited to the server. Check your inbox for the invite email."
+  pending: "Your submission was already received and is likely still pending review. You'll receive an email after it's been reviewed. If you have any urgent questions or concerns in the meantime, email us at {contact_email}"
+
+email:
+  pending: "Your submission was already received and is being processed. If you have any urgent questions, email us at {contact_email}"
