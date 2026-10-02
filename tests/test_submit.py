@@ -48,9 +48,9 @@ def test_existing_account(app_instance, fake_zulip):
 
 
 @pytest.mark.parametrize("state", ["registered", "invited"])
-def test_existing_account_or_invite_through_manage_py(make_app, fake_zulip, fake_manage_py, state):
-    app_instance = make_app(config={"zulip_lookup": "manage_py", "zulip_manage_py": __file__})
-    fake_manage_py.statuses["sam@example.com"] = state
+def test_existing_account_or_invite_through_the_helper(make_app, fake_zulip, fake_lookup_helper, state):
+    app_instance = make_app(config={"zulip_lookup": "helper", "zulip_lookup_socket": fake_lookup_helper.path})
+    fake_lookup_helper.statuses["sam@example.com"] = state
 
     response = app_instance.apply()
 

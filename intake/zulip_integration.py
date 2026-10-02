@@ -2,12 +2,12 @@ import urllib.parse
 
 import requests
 
-from . import config, zulip_manage
+from . import config, zulip_helper
 from .errors import ConfigError, DeliveryError
 
 ZULIP_API_TIMEOUT_SECONDS = 10
 UNKNOWN_USER_MESSAGE = "No such user"
-LOOKUP_MODES = ("api", "manage_py")
+LOOKUP_MODES = ("api", "helper")
 
 
 def get(site_url, path, label, auth=None, accepted_statuses=()):
@@ -16,7 +16,7 @@ def get(site_url, path, label, auth=None, accepted_statuses=()):
         if response.status_code not in accepted_statuses:
             response.raise_for_status()
     except requests.RequestException as error:
-        raise DeliveryError("api_failed", label=label, error=error) from error
+        raise DeliveryError("api_failed", label=label, url=site_url, error=error) from error
     return response
 
 
@@ -37,7 +37,7 @@ def _find_user(site_url, bot_email, bot_api_key, email):
         return response.json()["user"]
     if response.status_code == 404 or _error_message(response) == UNKNOWN_USER_MESSAGE:
         return None
-    raise DeliveryError("api_failed", label="user lookup", error=requests.HTTPError(response=response))
+    raise DeliveryError("api_failed", label="user lookup", url=site_url, error=requests.HTTPError(response=response))
 
 
 def _error_message(response):
@@ -62,8 +62,8 @@ def read_lookup_mode():
 
 
 def check_submission_email(email):
-    if read_lookup_mode() == "manage_py":
-        return zulip_manage.lookup_email_status(email)
+    if read_lookup_mode() == "helper":
+        return zulip_helper.lookup_email_status(email)
     return lookup_email_status(
         config.read_config("zulip_site_url"),
         config.read_config("zulip_bot_email"),

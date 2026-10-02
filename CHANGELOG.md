@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.0
+
+- Added a lookup helper for Zulip account checks, for when the app runs
+  on the Zulip server. It detects pending invites and works with an
+  Incoming webhook bot. Select it with `zulip_lookup = helper`.
+- The Zulip API lookup now needs a Generic bot with the Moderator role
+  and the "Admins and moderators" email visibility setting.
+- The install and configure scripts now offer to start and restart
+  services.
+- Zulip API errors now show the URL called and Zulip's reason.
+
 ## 2.0.0
 
 - Restructured the app as a proper Flask application. `app.py` is now

@@ -108,8 +108,8 @@ SITE_ROOT=$(get_conf_value site_root "$CONFIG_FILE")
 
 echo
 echo "This will:"
-echo "  - Stop and remove the $SERVICE_NAME, $CHECK_PENDING_UNIT_NAME, and"
-echo "    $CHECK_BOUNCES_UNIT_NAME systemd units."
+echo "  - Stop and remove the $SERVICE_NAME, $CHECK_PENDING_UNIT_NAME,"
+echo "    $CHECK_BOUNCES_UNIT_NAME, and $LOOKUP_UNIT_NAME systemd units."
 echo "  - Remove the generated application form files from $SITE_ROOT."
 echo "  - Look for and offer to remove reverse proxy wiring and leftovers from"
 echo "    older versions of this app."
@@ -124,12 +124,14 @@ fi
 echo
 echo "Stopping services..."
 for unit in "$SERVICE_NAME" "$CHECK_PENDING_UNIT_NAME.timer" "$CHECK_PENDING_UNIT_NAME.service" \
-    "$CHECK_BOUNCES_UNIT_NAME.timer" "$CHECK_BOUNCES_UNIT_NAME.service" \
+    "$CHECK_BOUNCES_UNIT_NAME.timer" "$CHECK_BOUNCES_UNIT_NAME.service" "$LOOKUP_UNIT_NAME.socket" \
     web-zulip-application-form web-zulip-application-form-check-pending.timer web-zulip-application-form-check-pending.service; do
     systemctl disable --now "$unit" 2>/dev/null || true
 done
 rm -f "$SERVICE_UNIT_PATH" "$CHECK_PENDING_SERVICE_UNIT_PATH" "$CHECK_PENDING_TIMER_UNIT_PATH" \
-    "$CHECK_BOUNCES_SERVICE_UNIT_PATH" "$CHECK_BOUNCES_TIMER_UNIT_PATH"
+    "$CHECK_BOUNCES_SERVICE_UNIT_PATH" "$CHECK_BOUNCES_TIMER_UNIT_PATH" \
+    "$LOOKUP_SOCKET_UNIT_PATH" "$LOOKUP_SERVICE_UNIT_PATH" "$LOOKUP_HELPER_PATH"
+rmdir "$LOOKUP_HELPER_DIR" 2>/dev/null || true
 rm -f /etc/systemd/system/web-zulip-application-form.service \
     /etc/systemd/system/web-zulip-application-form-check-pending.service \
     /etc/systemd/system/web-zulip-application-form-check-pending.timer

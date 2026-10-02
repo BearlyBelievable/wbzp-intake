@@ -66,9 +66,10 @@ sync_service_units
 
 echo "Done."
 if [ "$service_installed" = "yes" ]; then
-    echo "Changes take effect the next time the $SERVICE_NAME service starts"
-    echo "(sudo systemctl restart $SERVICE_NAME)."
-    if bounce_checking_enabled; then
-        echo "Start the bounce check with sudo systemctl start $CHECK_BOUNCES_UNIT_NAME.timer."
+    if bounce_checking_enabled && ! systemctl is-active --quiet "$CHECK_BOUNCES_UNIT_NAME.timer"; then
+        if ! offer_to_start "Do you want to start the bounce check now?" "$CHECK_BOUNCES_UNIT_NAME.timer"; then
+            echo "Start it later with sudo systemctl start $CHECK_BOUNCES_UNIT_NAME.timer."
+        fi
     fi
+    offer_to_restart_service
 fi

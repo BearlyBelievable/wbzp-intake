@@ -1,0 +1,13 @@
+[Unit]
+Description=wbzp-intake Zulip account lookup socket
+
+[Socket]
+ListenStream=/run/wbzp-intake-lookup.sock
+SocketUser=__RUN_AS_USER__
+SocketGroup=__RUN_AS_USER__
+SocketMode=0600
+Accept=yes
+MaxConnections=2
+
+[Install]
+WantedBy=sockets.target

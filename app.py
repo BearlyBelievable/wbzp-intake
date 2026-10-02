@@ -6,7 +6,7 @@ from flask import Flask, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from intake import bounce_check, cli, config, destinations, errors, form_store, mail, strings, submit, zulip_integration, zulip_manage
+from intake import bounce_check, cli, config, destinations, errors, form_store, mail, strings, submit, zulip_helper, zulip_integration
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,8 +53,8 @@ def _require_core_settings():
         config.read_config("zulip_site_url")
         config.read_config("zulip_bot_email")
         config.read_secret("zulip_bot_api_key")
-        if zulip_integration.read_lookup_mode() == "manage_py" and not Path(zulip_manage.manage_py_path()).exists():
-            raise errors.ConfigError("manage_py_missing", path=zulip_manage.manage_py_path())
+        if zulip_integration.read_lookup_mode() == "helper" and not Path(zulip_helper.socket_path()).exists():
+            raise errors.ConfigError("lookup_socket_missing", path=zulip_helper.socket_path())
 
 
 def _require_email_support_if_used():

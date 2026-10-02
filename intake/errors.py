@@ -5,9 +5,27 @@ import requests
 import yaml
 
 
+def _server_message(response):
+    try:
+        message = response.json().get("msg")
+    except (ValueError, AttributeError):
+        return None
+    return message if isinstance(message, str) and message else None
+
+
+def _describe_http_error(response):
+    description = f"the server answered HTTP {response.status_code}"
+    message = _server_message(response)
+    if message:
+        description += f" ({message})"
+    if getattr(response, "history", None):
+        description += f" after redirecting to {response.url}"
+    return description
+
+
 def _describe(error):
     if isinstance(error, requests.HTTPError) and error.response is not None:
-        return f"the server answered HTTP {error.response.status_code}"
+        return _describe_http_error(error.response)
     if isinstance(error, requests.Timeout):
         return "the request timed out"
     if isinstance(error, requests.ConnectionError):
@@ -53,9 +71,9 @@ class ConfigError(AppError):
         "invalid_config_file": "{path} is not a valid config file: {reason}",
         "missing_setting": "The setting '{name}' is missing from instance/config.conf and instance/secrets.conf",
         "invalid_setting": "The setting '{name}' has the value {value!r}, which isn't valid",
-        "manage_py_missing": (
-            "zulip_lookup is 'manage_py' but {path} was not found. Set zulip_manage_py in instance/config.conf "
-            "to the location of Zulip's manage.py."
+        "lookup_socket_missing": (
+            "zulip_lookup is 'helper' but {path} was not found. Run sudo ./configure-zulip.sh to set up the lookup "
+            "helper, then start wbzp-intake-lookup.socket."
         ),
         "invalid_yaml": "{path} is not valid YAML: {reason}",
         "invalid_destination_type": "Destination '{name}'{location} has an invalid or missing 'type'",
@@ -164,13 +182,13 @@ class MigrationError(AppError):
 
 class DeliveryError(AppError):
     messages = {
-        "api_failed": "The Zulip API request failed ({label}): {reason}",
+        "api_failed": "The Zulip API request failed ({label} at {url}): {reason}",
         "email_visibility": (
             "The Zulip bot {bot_email} can't see members' real email addresses, so it can't tell who already has "
-            "an account. In Zulip, set 'Who can access user email addresses' to Everyone or Members, or make "
-            "the bot an administrator, then try again."
+            "an account. In Zulip, give the bot the Moderator role and set 'Who can access user email addresses' "
+            "to Admins and moderators, then try again."
         ),
-        "manage_py_failed": "Could not check Zulip's database with manage.py shell: {reason}",
+        "helper_failed": "Could not check Zulip accounts through the lookup helper: {reason}",
         "not_zulip": "{url} doesn't look like a Zulip server",
         "no_organization": "{url} is a Zulip server but not a single organization on it. Enter the URL of one organization.",
         "settings_unreadable": "Could not read Zulip's settings at {path}: {reason}",

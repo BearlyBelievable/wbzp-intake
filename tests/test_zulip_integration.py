@@ -1,13 +1,12 @@
 import base64
 import re
-import subprocess
 
 import pytest
 import requests
 import responses
 from fake_services import ZULIP_URL
 
-from intake import zulip_integration, zulip_manage
+from intake import zulip_helper, zulip_integration
 from intake.errors import DeliveryError
 
 
@@ -42,7 +41,7 @@ def test_lookup_rejected_with_other_400(app_context, fake_zulip):
     with pytest.raises(DeliveryError) as caught:
         zulip_integration.check_submission_email(EMAIL)
 
-    assert str(caught.value) == "The Zulip API request failed (user lookup): the server answered HTTP 400"
+    assert str(caught.value) == f"The Zulip API request failed (user lookup at {ZULIP_URL}): the server answered HTTP 400 (Invalid API key)"
 
 
 def test_bot_authentication(app_context, mock_http, fake_zulip):
@@ -75,7 +74,7 @@ def test_lookup_failure(app_context, mock_http, response, reason):
     with pytest.raises(DeliveryError) as caught:
         zulip_integration.check_submission_email(EMAIL)
 
-    assert str(caught.value) == f"The Zulip API request failed (user lookup): {reason}"
+    assert str(caught.value) == f"The Zulip API request failed (user lookup at {ZULIP_URL}): {reason}"
 
 
 @pytest.mark.parametrize("response, reason", API_FAILURES, ids=API_FAILURE_IDS)
@@ -89,41 +88,49 @@ def test_post_failure(app_context, mock_http, response, reason):
 
 
 @pytest.mark.parametrize("status", ["registered", "invited", "none"])
-def test_manage_py_status(make_app, fake_zulip, fake_manage_py, status):
-    app_instance = make_app(config={"zulip_lookup": "manage_py", "zulip_manage_py": __file__})
-    fake_manage_py.statuses[EMAIL] = status
+def test_helper_status(make_app, fake_zulip, fake_lookup_helper, status):
+    app_instance = make_app(config={"zulip_lookup": "helper", "zulip_lookup_socket": fake_lookup_helper.path})
+    fake_lookup_helper.statuses[EMAIL] = status
 
     with app_instance.app.app_context():
         assert zulip_integration.check_submission_email("A@Example.com") == status
 
     assert fake_zulip.lookups == 0
-    (call,) = fake_manage_py.calls
-    assert call["command"] == [__file__, "shell"]
-    assert call["email"] == "A@Example.com"
-    assert "filter_to_valid_prereg_users" in call["input"]
+    assert fake_lookup_helper.requests == ["A@Example.com"]
 
 
 @pytest.mark.parametrize(
-    "stdout, stderr, error, reason",
+    "reply, hang_up, reason",
     [
-        ("RESULT:maybe\n", "", None, "it printed no result"),
-        ("", "Traceback\nValueError: boom\n", None, "ValueError: boom"),
-        (None, "", OSError(13, "Permission denied"), "Permission denied"),
-        (None, "", subprocess.TimeoutExpired("manage.py", 30), "timed out after 30"),
+        ("error", False, "it sent back an unexpected answer"),
+        ("maybe", False, "it sent back an unexpected answer"),
+        (None, True, "it sent back an unexpected answer"),
     ],
-    ids=["unknown-status", "script-crashed", "cannot-run", "timeout"],
+    ids=["helper-reported-failure", "unknown-answer", "no-answer"],
 )
-def test_manage_py_failure(make_app, fake_manage_py, stdout, stderr, error, reason):
-    app_instance = make_app(config={"zulip_lookup": "manage_py", "zulip_manage_py": __file__})
-    fake_manage_py.stdout = stdout
-    fake_manage_py.stderr = stderr
-    fake_manage_py.error = error
+def test_helper_failure(make_app, fake_lookup_helper, reply, hang_up, reason):
+    app_instance = make_app(config={"zulip_lookup": "helper", "zulip_lookup_socket": fake_lookup_helper.path})
+    fake_lookup_helper.reply = reply
+    fake_lookup_helper.hang_up = hang_up
 
-    with app_instance.app.app_context(), pytest.raises(DeliveryError, match="Could not check Zulip's database") as caught:
+    with app_instance.app.app_context(), pytest.raises(DeliveryError, match="through the lookup helper") as caught:
         zulip_integration.check_submission_email(EMAIL)
 
     assert reason in str(caught.value)
 
 
-def test_manage_py_default_path(app_context):
-    assert zulip_manage.manage_py_path() == "/home/zulip/deployments/current/manage.py"
+def test_helper_not_running(make_app, fake_lookup_helper, tmp_path):
+    app_instance = make_app(config={"zulip_lookup": "helper", "zulip_lookup_socket": fake_lookup_helper.path})
+    fake_lookup_helper.stop()
+
+    with app_instance.app.app_context(), pytest.raises(DeliveryError, match="through the lookup helper"):
+        zulip_integration.check_submission_email(EMAIL)
+
+
+def test_helper_refuses_an_address_with_a_line_break(app_context):
+    with pytest.raises(DeliveryError, match="the email address is not valid"):
+        zulip_helper.lookup_email_status("a@example.com\nb@example.com")
+
+
+def test_helper_default_socket_path(app_context):
+    assert zulip_helper.socket_path() == "/run/wbzp-intake-lookup.sock"

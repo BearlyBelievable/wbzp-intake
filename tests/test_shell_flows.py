@@ -1,5 +1,6 @@
 import configparser
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -23,6 +24,7 @@ COPIED_FILES = [
     "email_providers_cli.py",
     "email_providers.json",
     "zulip_email_cli.py",
+    "lookup_helper.py",
 ]
 
 PYTHON_WRAPPER = '#!/bin/bash\n"{python}" "$@" | tr -d "\\r"\nexit ${{PIPESTATUS[0]}}\n'
@@ -49,6 +51,8 @@ class ShellApp:
         self.bin = tmp_path / "bin"
         self.log = tmp_path / "calls.log"
         self.zulip_settings = tmp_path / "zulip-settings.py"
+        self.helper_dir = tmp_path / "helper"
+        self.manage_py = tmp_path / "zulip" / "manage.py"
         self.root.mkdir()
         self.systemd.mkdir()
         self.log.write_text("")
@@ -68,6 +72,7 @@ class ShellApp:
             "PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}",
             "WBZP_INTAKE_SYSTEMD_DIR": str(self.systemd).replace(os.sep, "/"),
             "WBZP_INTAKE_ZULIP_SETTINGS": str(self.zulip_settings).replace(os.sep, "/"),
+            "WBZP_INTAKE_HELPER_DIR": str(self.helper_dir).replace(os.sep, "/"),
             "SUDO_USER": "tester",
             "STUB_LOG": str(self.log).replace(os.sep, "/"),
         }
@@ -314,3 +319,143 @@ def test_legacy_services_are_removed(shell_app):
     assert result.returncode == 0, result.stderr
     assert list(shell_app.systemd.iterdir()) == []
     assert "systemctl disable --now web-zulip-application-form" in shell_app.calls()
+
+
+def install_helper(shell_app, stdin=""):
+    write_executable(shell_app.manage_py, "#!/bin/sh\n")
+    manage_py = str(shell_app.manage_py).replace(os.sep, "/")
+    shell_app.run(f'set_conf_value zulip_manage_py "{manage_py}" "$CONFIG_FILE"')
+    return shell_app.run("install_lookup_helper", stdin=stdin), manage_py
+
+
+def test_lookup_helper_is_installed_root_owned_with_its_units(shell_app):
+    result, manage_py = install_helper(shell_app)
+
+    assert result.returncode == 0, result.stderr
+    helper = shell_app.helper_dir / "lookup_helper.py"
+    assert helper.read_text() == (REPO_ROOT / "lookup_helper.py").read_text()
+    assert helper.stat().st_mode & 0o777 == 0o755
+    socket_unit = (shell_app.systemd / "wbzp-intake-lookup.socket").read_text()
+    assert "SocketUser=tester" in socket_unit
+    assert "SocketMode=0600" in socket_unit
+    service_unit = (shell_app.systemd / "wbzp-intake-lookup@.service").read_text()
+    assert f"Environment=WBZP_INTAKE_MANAGE_PY={manage_py}" in service_unit
+    assert f"ExecStart=/usr/bin/python3 {str(helper).replace(os.sep, '/')}" in service_unit
+    assert re.search(r"^User=\S+$", service_unit, re.MULTILINE)
+    assert "__" not in socket_unit + service_unit
+    calls = shell_app.calls()
+    assert f"chown root:root {str(shell_app.helper_dir).replace(os.sep, '/')} {str(helper).replace(os.sep, '/')}" in calls
+    assert "systemctl daemon-reload" in calls
+    assert "systemctl enable wbzp-intake-lookup.socket" in calls
+    assert not any(call.startswith("systemctl start") for call in calls)
+    assert shell_app.setting("zulip_manage_py") == manage_py
+
+
+def test_lookup_helper_setup_asks_where_manage_py_is_when_it_is_missing(shell_app):
+    write_executable(shell_app.manage_py, "#!/bin/sh\n")
+    manage_py = str(shell_app.manage_py).replace(os.sep, "/")
+
+    result = shell_app.run("install_lookup_helper", stdin=f"/nowhere/manage.py\n{manage_py}\n")
+
+    assert result.returncode == 0, result.stderr
+    assert shell_app.setting("zulip_manage_py") == manage_py
+    assert (shell_app.helper_dir / "lookup_helper.py").exists()
+
+
+@pytest.mark.parametrize("mode, installed", [("helper", True), ("api", False)], ids=["helper-mode", "api-mode"])
+def test_service_sync_keeps_the_lookup_helper_current(shell_app, mode, installed):
+    write_executable(shell_app.manage_py, "#!/bin/sh\n")
+    manage_py = str(shell_app.manage_py).replace(os.sep, "/")
+    shell_app.run(
+        f'set_conf_value site_root /srv/site "$CONFIG_FILE"\n'
+        f'set_conf_value zulip_manage_py "{manage_py}" "$CONFIG_FILE"\n'
+        f'set_conf_value zulip_lookup "{mode}" "$CONFIG_FILE"'
+    )
+
+    result = shell_app.run("sync_service_units")
+
+    assert result.returncode == 0, result.stderr
+    assert (shell_app.systemd / "wbzp-intake-lookup.socket").exists() is installed
+    assert ("systemctl enable wbzp-intake-lookup.socket" in shell_app.calls()) is installed
+
+
+def test_lookup_question_installs_the_helper_when_the_app_is_on_the_zulip_server(shell_app):
+    write_executable(shell_app.manage_py, "#!/bin/sh\n")
+    manage_py = str(shell_app.manage_py).replace(os.sep, "/")
+    shell_app.run(f'set_conf_value zulip_manage_py "{manage_py}" "$CONFIG_FILE"')
+
+    result = shell_app.run("choose_lookup_mode", stdin="y\n")
+
+    assert result.returncode == 0, result.stderr
+    assert shell_app.setting("zulip_lookup") == "helper"
+    assert (shell_app.systemd / "wbzp-intake-lookup.socket").exists()
+
+
+def test_lookup_question_defaults_to_the_api(shell_app):
+    result = shell_app.run("choose_lookup_mode", stdin="\n")
+
+    assert result.returncode == 0, result.stderr
+    assert shell_app.setting("zulip_lookup") == "api"
+    assert not (shell_app.systemd / "wbzp-intake-lookup.socket").exists()
+
+
+def test_lookup_question_is_only_asked_once(shell_app):
+    shell_app.run('set_conf_value zulip_lookup api "$CONFIG_FILE"')
+
+    result = shell_app.run("choose_lookup_mode", stdin="y\n")
+
+    assert result.returncode == 0, result.stderr
+    assert shell_app.setting("zulip_lookup") == "api"
+    assert "Is this app running on the Zulip server" not in result.stderr
+
+
+def test_lookup_question_adds_its_settings_to_an_older_config_file(shell_app):
+    config = shell_app.root / "instance" / "config.conf"
+    config.write_text(
+        "".join(line for line in config.read_text().splitlines(keepends=True) if not line.startswith(("zulip_lookup", "zulip_manage_py"))),
+        encoding="utf-8",
+    )
+
+    result = shell_app.run("choose_lookup_mode", stdin="n" + chr(10))
+
+    assert result.returncode == 0, result.stderr
+    assert shell_app.setting("zulip_lookup") == "api"
+
+
+def test_offer_to_start_starts_the_units_after_confirmation(shell_app):
+    result = shell_app.run("offer_to_start 'Start them now?' first.service second.timer", stdin="y" + chr(10))
+
+    assert result.returncode == 0, result.stderr
+    assert "systemctl start first.service second.timer" in shell_app.calls()
+
+
+def test_offer_to_start_does_nothing_without_confirmation(shell_app):
+    result = shell_app.run("offer_to_start 'Start them now?' first.service" + chr(10) + "echo status=$?", stdin=chr(10))
+
+    assert "status=1" in result.stdout
+    assert not any(call.startswith("systemctl start") for call in shell_app.calls())
+
+
+def test_restart_is_offered_when_the_service_is_running(shell_app):
+    result = shell_app.run("offer_to_restart_service", stdin="y" + chr(10))
+
+    assert result.returncode == 0, result.stderr
+    assert "systemctl restart wbzp-intake" in shell_app.calls()
+
+
+def test_restart_can_be_declined(shell_app):
+    result = shell_app.run("offer_to_restart_service", stdin="n" + chr(10))
+
+    assert result.returncode == 0, result.stderr
+    assert "Run sudo systemctl restart wbzp-intake when you're ready." in result.stdout
+    assert not any(call.startswith("systemctl restart") for call in shell_app.calls())
+
+
+def test_restart_is_not_offered_when_the_service_is_stopped(shell_app):
+    write_executable(shell_app.bin / "systemctl", "#!/bin/sh" + chr(10) + 'echo "systemctl $*" >> "$STUB_LOG"' + chr(10) + "exit 3" + chr(10))
+
+    result = shell_app.run("offer_to_restart_service")
+
+    assert result.returncode == 0, result.stderr
+    assert "Changes take effect the next time the wbzp-intake service starts." in result.stdout
+    assert not any(call.startswith("systemctl restart") for call in shell_app.calls())

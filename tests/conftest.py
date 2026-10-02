@@ -1,8 +1,11 @@
 import imaplib
 import os
 import runpy
+import shutil
 import smtplib
+import socket
 import sys
+import tempfile
 
 import pytest
 import requests
@@ -10,7 +13,7 @@ import responses
 import yaml
 
 from app_harness import AppInstance, DEFAULT_CONFIG, DEFAULT_DESTINATIONS, DEFAULT_SECRETS, REPO_ROOT, ini
-from fake_services import FakeMailbox, FakeManagePy, FakeSmtpServer, FakeZulip
+from fake_services import FakeLookupHelper, FakeMailbox, FakeSmtpServer, FakeZulip
 
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "generator"))
@@ -53,8 +56,14 @@ def fake_zulip(mock_http):
 
 
 @pytest.fixture
-def fake_manage_py(monkeypatch):
-    return FakeManagePy().install(monkeypatch)
+def fake_lookup_helper():
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("the lookup helper socket needs Unix sockets")
+    directory = tempfile.mkdtemp(prefix="wbzp-")
+    helper = FakeLookupHelper(os.path.join(directory, "lookup.sock")).start()
+    yield helper
+    helper.stop()
+    shutil.rmtree(directory, ignore_errors=True)
 
 
 @pytest.fixture

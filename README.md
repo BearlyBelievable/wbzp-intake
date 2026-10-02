@@ -47,19 +47,15 @@ work with any static site (Zulip itself is optional).
 2. Run `sudo ./install.sh` and fill in the
    [configuration options](#configuration-options). Along the way it
    asks where submissions should go and runs the matching
-   [destination](#destinations) setup for you.
+   [destination](#destinations) setup for you. At the end it offers to
+   start the service and its timers.
 3. Customize your [form templates](#building-your-forms) to fit what
    you need.
 4. Run `sudo ./generate-form.sh` to generate the form HTML from
    them.
 5. [Hook up your site](#hooking-up-your-site) to serve the generated
    forms.
-6. Start the service and its timers with the command the installer
-   printed. It's
-   `sudo systemctl start wbzp-intake wbzp-intake-check-pending.timer`,
-   plus `wbzp-intake-check-bounces.timer` if you set up
-   [bounce checking](#bounce-checking).
-7. Once everything's wired up, check it's live:
+6. Once everything's wired up, check it's live:
    `curl -i http://127.0.0.1:8793/intake/<template-name>` should
    return a non-502 response.
 
@@ -70,8 +66,8 @@ go through the full setup again. Your answers are saved in
 `instance/config.conf`, and your secrets (API keys and passwords) in
 `instance/secrets.conf`, so you can also edit those files directly.
 To change your destinations, run `sudo ./configure-email.sh` or
-`sudo ./configure-zulip.sh` again. Restart the service afterward
-(`sudo systemctl restart wbzp-intake`) to apply the change.
+`sudo ./configure-zulip.sh` again. The scripts offer to restart the
+service so the change takes effect.
 
 ### Uninstalling
 
@@ -242,24 +238,25 @@ app logs a warning each time the service starts.
 ### Zulip
 
 Run `sudo ./configure-zulip.sh`. The first time you add a Zulip
-destination, it prompts for your Zulip bot's email and API key, then
-for your organization's URL (it suggests one based on the bot's email
-domain). It confirms that the URL is a Zulip organization and checks
-that the bot can see members' real email addresses (see
-[Troubleshooting](#troubleshooting) if that check fails). Once those
-are confirmed, you can select a channel to use. Options for channels
-come from the channels the bot is already subscribed to, so subscribe
-it to the desired channel in Zulip first.
+destination, it asks how to look up accounts (see
+[account lookup](#account-lookup)), then prompts for your Zulip bot's
+email and API key and for your organization's URL (it suggests one based
+on the bot's email domain). It confirms that the URL is a Zulip
+organization and, unless the app uses the lookup helper, that the bot
+can see members' real email addresses (see
+[Troubleshooting](#troubleshooting) if that check fails). Once those are
+confirmed, you can select a channel to use. Options for channels come
+from the channels the bot is already subscribed to, so subscribe it to
+the desired channel in Zulip first.
 
-Each Zulip destination posts to one channel, and they all share the
-same bot. To send a form's submissions to another channel, run the
-script again, or answer yes when it offers to add another. The first
-destination is named `default`, and you give any others a name for a
-routing rule to use. Each one also
-needs a `topic`, which Zulip requires for every post. The script asks
-for it and uses `New wbzp-intake submission`, the same default as
-email subjects, if you leave it blank, or you can enter `general chat`
-if your organization allows it.
+Each Zulip destination posts to one channel, and they all share the same
+bot. To send a form's submissions to another channel, run the script
+again, or answer yes when it offers to add another. The first destination
+is named `default`, and you give any others a name for a routing rule to
+use. Each one also needs a `topic`, which Zulip requires for every post.
+The script asks for it and uses `New wbzp-intake submission`, the same
+default as email subjects, if you leave it blank, or you can enter
+`general chat` if your organization allows it.
 
 ```yaml
 default:
@@ -272,22 +269,32 @@ youth:
     topic: Youth applications
 ```
 
-Before posting, the app checks Zulip for the submitter's email,
-whichever channel a rule picked. An email that already has an account
-is turned away, and one that was already submitted and is waiting on
-review gets the pending message. Email destinations
-skip this check, so a submitter can submit again as soon as the email
-is sent, within the rate limits. See
-[Detecting duplicate Zulip submissions](#detecting-duplicate-zulip-submissions).
+Before posting, the app checks Zulip for the submitter's email, whichever
+channel a rule picked. An email that already has an account is turned
+away, and one that was already submitted and is waiting on review gets
+the pending message. Email destinations skip this check, so a submitter
+can submit again as soon as the email is sent, within the rate limits.
+See [Detecting duplicate Zulip submissions](#detecting-duplicate-zulip-submissions).
 
-The bot needs to see members' real email addresses, or registered
-users won't be recognized. That works when your organization's "Who
-can access user email addresses" setting is Everyone or Members, or
-when the bot is an administrator. Zulip doesn't let bots read
-invitations, so by default a pending invite isn't detected. If you
-run the app on the Zulip server, see
-[Checking Zulip's database directly](#checking-zulips-database-directly)
-for a way to detect them.
+#### Account lookup
+
+`configure-zulip.sh` asks how to check for existing accounts the first
+time you run it, and your answer is saved as `zulip_lookup` in
+`instance/config.conf`.
+
+**Lookup helper (best when possible):** This is the more secure option,
+and it needs the app to run on the Zulip server. The script installs a
+small service that runs as the Zulip user and answers one question for
+the app, which is whether an email has an account or a pending invite.
+The app never gets access to Zulip itself. The bot can be an Incoming
+webhook bot, and pending invites are detected.
+
+**Zulip API (default):** This is the less secure option and the only one
+that works when Zulip runs on another server. It needs a Generic bot
+(an Incoming webhook bot can't use the API) with the Moderator role, and
+your organization's "Who can access user email addresses" setting has to
+be "Admins and moderators". The bot can then read members' real email
+addresses, but pending invites aren't detectable.
 
 ## Building your forms
 
@@ -456,10 +463,12 @@ and that the bot can see members' real email addresses. If it reports
 that the address doesn't look like a Zulip server, or isn't one
 organization on a server, enter the organization's URL. If it reports
 that the bot can't see email addresses, set "Who can access user email
-addresses" to Everyone or Members in Zulip, or give the bot the
-Administrator role, and enter the URL again. An error from the Zulip
+addresses" to Admins and moderators in Zulip and give the bot the
+Moderator role, then enter the URL again. An error from the Zulip
 API, such as HTTP 401, usually means the bot's email or API key is
-wrong.
+wrong, or that the bot is an Incoming webhook bot, which can't use the
+API. If the app runs on the Zulip server, the lookup helper works with
+that bot type (see [account lookup](#account-lookup)).
 
 ### Handling technical failures
 
@@ -506,6 +515,8 @@ doesn't count). The result is one of:
 
 - **Already has a Zulip account:** The submitter sees a simple
   "That email address can't be used" message.
+- **Has a pending invite (lookup helper only):** The submitter is told
+  to check their inbox for the invite.
 - **A submission was sent but no account yet:** The submission
   is kept as a local record in `instance/submissions.db` until it expires
   (per `submission_expiry_days`). The submitter is told it's still
@@ -551,24 +562,9 @@ value in `instance/config.conf` if you want something different.
 | `max_attempts_per_email` | `3` | Submissions allowed per rolling hour for one email address. |
 | `rate_limit_window_minutes` | `60` | Length of the rolling window used for both limits above. |
 | `submission_expiry_days` | `30` | How long a submission awaiting signup is kept before a resubmission is treated as new. |
-| `zulip_lookup` | `api` | How the app checks whether a submitter's email already has a Zulip account. `manage_py` also detects pending invites, see [Checking Zulip's database directly](#checking-zulips-database-directly). |
 | `smtp_security` | `starttls` | How to secure the SMTP connection: `starttls`, `ssl`, or `none`. |
 | `bounce_imap_port` | `993` | IMAP port for the [bounce mailbox](#bounce-checking). |
 | `bounce_imap_folder` | `INBOX` | IMAP folder the bounce check reads. |
-| `zulip_manage_py` | `/home/zulip/deployments/current/manage.py` | Location of Zulip's `manage.py`, used when `zulip_lookup` is `manage_py`. |
 | `max_body_bytes` | `8192` | Largest `/intake/<name>` request body accepted. Raise this if a large set of fields makes a legitimate submission exceed it. |
 | `max_text_length` | `250` | Default character limit for a `text`/`email` field with no `length.max` set. |
 | `max_textarea_length` | `1000` | Default character limit for a `textarea` field with no `length.max` set. |
-
-### Checking Zulip's database directly
-
-Zulip doesn't let bots read invitations, so by default the app can
-only tell whether an email already has an account. If the app runs on
-the same server as Zulip, you can set `zulip_lookup` to `manage_py` in
-`instance/config.conf` and it asks Zulip's database directly through
-`manage.py shell` instead. That also detects pending invites, so a
-submitter with one is told to check their inbox, and it no longer
-depends on the bot's view of email addresses.
-
-The service has to run as a user that can run Zulip's `manage.py`,
-normally the `zulip` user.

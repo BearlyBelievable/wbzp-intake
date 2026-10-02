@@ -80,7 +80,7 @@ def test_hidden_email_addresses(mock_http):
         resolve()
 
 
-def test_visibility_is_not_checked_for_manage_py_lookups(mock_http):
+def test_visibility_is_not_checked_for_helper_lookups(mock_http):
     zulip_server(mock_http, members=[member(None)])
 
     assert resolve(check_visibility=False) == REALM
@@ -105,7 +105,7 @@ def test_visibility_is_not_checked_for_manage_py_lookups(mock_http):
             lambda mock_http: mock_http.add(
                 responses.GET, f"https://{TYPED}/api/v1/server_settings", body=requests.ConnectionError()
             ),
-            "The Zulip API request failed (server settings): the connection failed",
+            f"The Zulip API request failed (server settings at https://{TYPED}): the connection failed",
         ),
     ],
     ids=["no-organization", "not-json", "json-list", "unreachable"],

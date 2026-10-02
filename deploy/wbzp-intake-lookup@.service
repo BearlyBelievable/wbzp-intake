@@ -1,0 +1,17 @@
+[Unit]
+Description=wbzp-intake Zulip account lookup
+
+[Service]
+User=__ZULIP_USER__
+Group=__ZULIP_USER__
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+Environment=WBZP_INTAKE_MANAGE_PY=__ZULIP_MANAGE_PY__
+ExecStart=/usr/bin/python3 __HELPER_PATH__
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RuntimeMaxSec=30

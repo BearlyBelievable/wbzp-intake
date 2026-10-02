@@ -1,8 +1,10 @@
 import imaplib
 import json
+import os
 import re
 import smtplib
-import subprocess
+import socket
+import threading
 import urllib.parse
 from dataclasses import dataclass
 
@@ -43,27 +45,49 @@ class FakeZulip:
         return self.post_status, {}, '{"result": "error"}'
 
 
-class FakeManagePy:
-    def __init__(self):
+class FakeLookupHelper:
+    def __init__(self, path):
+        self.path = path
         self.statuses = {}
-        self.calls = []
-        self.stdout = None
-        self.stderr = ""
-        self.error = None
+        self.requests = []
+        self.reply = None
+        self.hang_up = False
+        self._server = None
+        self._thread = None
 
-    def install(self, monkeypatch):
-        fake = self
+    def start(self):
+        self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._server.bind(str(self.path))
+        self._server.listen(4)
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+        return self
 
-        def run(command, input, env, capture_output, text, timeout):
-            if fake.error:
-                raise fake.error
-            fake.calls.append({"command": command, "input": input, "email": env["CHECK_EMAIL"], "timeout": timeout})
-            status = fake.statuses.get(env["CHECK_EMAIL"].lower(), "none")
-            stdout = fake.stdout if fake.stdout is not None else f"noise\nRESULT:{status}\n"
-            return subprocess.CompletedProcess(command, 0, stdout, fake.stderr)
+    def _serve(self):
+        while True:
+            try:
+                connection, _ = self._server.accept()
+            except OSError:
+                return
+            with connection:
+                request = connection.makefile("rb").readline().decode().strip()
+                self.requests.append(request)
+                if self.hang_up:
+                    continue
+                reply = self.reply if self.reply is not None else self.statuses.get(request.lower(), "none")
+                connection.sendall(reply.encode() + b"\n")
 
-        monkeypatch.setattr(subprocess, "run", run)
-        return fake
+    def stop(self):
+        try:
+            self._server.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        self._server.close()
+        self._thread.join(timeout=2)
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
 
 
 @dataclass

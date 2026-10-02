@@ -62,7 +62,7 @@ import os
 from intake.errors import DeliveryError
 from intake.zulip_setup import resolve_site_url
 try:
-    print(resolve_site_url(os.environ['ZULIP_SITE_URL'], os.environ['ZULIP_BOT_EMAIL'], os.environ['ZULIP_BOT_API_KEY'], os.environ['ZULIP_LOOKUP'] != 'manage_py'))
+    print(resolve_site_url(os.environ['ZULIP_SITE_URL'], os.environ['ZULIP_BOT_EMAIL'], os.environ['ZULIP_BOT_API_KEY'], os.environ['ZULIP_LOOKUP'] != 'helper'))
 except DeliveryError as error:
     raise SystemExit(f'Error: {error}')
 " "$LAST_ZULIP_URL"); then
@@ -74,6 +74,7 @@ except DeliveryError as error:
 }
 
 connect_to_zulip() {
+    choose_lookup_mode
     while true; do
         prompt_for_key zulip_bot_email "What is the bot's email? (Personal settings > Bots)" no yes "$CONFIG_FILE"
         prompt_setting zulip_bot_api_key "What is the bot's API key?" yes "$SECRETS_FILE"
@@ -171,7 +172,11 @@ done
 echo
 
 echo "Done."
+if [ -f "$LOOKUP_SOCKET_UNIT_PATH" ] && ! systemctl is-active --quiet "$LOOKUP_UNIT_NAME.socket"; then
+    if ! offer_to_start "Do you want to start the lookup helper now?" "$LOOKUP_UNIT_NAME.socket"; then
+        echo "Start it later with sudo systemctl start $LOOKUP_UNIT_NAME.socket."
+    fi
+fi
 if [ -f "$SERVICE_UNIT_PATH" ]; then
-    echo "Changes take effect the next time the $SERVICE_NAME service starts"
-    echo "(sudo systemctl restart $SERVICE_NAME)."
+    offer_to_restart_service
 fi

@@ -20,6 +20,12 @@ CHECK_PENDING_TIMER_UNIT_PATH=$SYSTEMD_DIR/$CHECK_PENDING_UNIT_NAME.timer
 CHECK_BOUNCES_UNIT_NAME=wbzp-intake-check-bounces
 CHECK_BOUNCES_SERVICE_UNIT_PATH=$SYSTEMD_DIR/$CHECK_BOUNCES_UNIT_NAME.service
 CHECK_BOUNCES_TIMER_UNIT_PATH=$SYSTEMD_DIR/$CHECK_BOUNCES_UNIT_NAME.timer
+LOOKUP_UNIT_NAME=wbzp-intake-lookup
+LOOKUP_SOCKET_UNIT_PATH=$SYSTEMD_DIR/$LOOKUP_UNIT_NAME.socket
+LOOKUP_SERVICE_UNIT_PATH=$SYSTEMD_DIR/$LOOKUP_UNIT_NAME@.service
+LOOKUP_HELPER_DIR="${WBZP_INTAKE_HELPER_DIR:-/usr/local/lib/wbzp-intake}"
+LOOKUP_HELPER_PATH=$LOOKUP_HELPER_DIR/lookup_helper.py
+DEFAULT_ZULIP_MANAGE_PY=/home/zulip/deployments/current/manage.py
 
 conf_section() {
     [ "$1" = "$SECRETS_FILE" ] && echo secrets || echo config
@@ -100,6 +106,89 @@ sync_service_units() {
         systemctl enable "$CHECK_BOUNCES_UNIT_NAME.timer"
     else
         systemctl disable --now "$CHECK_BOUNCES_UNIT_NAME.timer" 2>/dev/null || true
+    fi
+
+    if [ "$(get_conf_value zulip_lookup "$CONFIG_FILE")" = "helper" ]; then
+        install_lookup_helper
+    fi
+}
+
+ensure_config_key() {
+    if ! grep -q "^$1[[:space:]]*=" "$CONFIG_FILE"; then
+        printf '%s =\n' "$1" >> "$CONFIG_FILE"
+    fi
+}
+
+install_lookup_helper() {
+    local manage_py zulip_user
+
+    ensure_config_key zulip_manage_py
+
+    manage_py=$(get_conf_value zulip_manage_py "$CONFIG_FILE")
+    manage_py="${manage_py:-$DEFAULT_ZULIP_MANAGE_PY}"
+    while [ ! -f "$manage_py" ]; do
+        if ! ask -r -p "Where is Zulip's manage.py? " manage_py; then
+            echo "Error: Zulip's manage.py is required for the lookup helper." >&2
+            exit 1
+        fi
+    done
+    zulip_user=$(stat -c %U "$manage_py")
+
+    mkdir -p "$LOOKUP_HELPER_DIR"
+    install -m 0755 "$APP_DIR/lookup_helper.py" "$LOOKUP_HELPER_PATH"
+    chown root:root "$LOOKUP_HELPER_DIR" "$LOOKUP_HELPER_PATH"
+
+    sed -e "s|__RUN_AS_USER__|$RUN_AS_USER|g" \
+        "$APP_DIR/deploy/$LOOKUP_UNIT_NAME.socket" > "$LOOKUP_SOCKET_UNIT_PATH"
+    sed -e "s|__ZULIP_USER__|$zulip_user|g" -e "s|__ZULIP_MANAGE_PY__|$manage_py|g" \
+        -e "s|__HELPER_PATH__|$LOOKUP_HELPER_PATH|g" \
+        "$APP_DIR/deploy/$LOOKUP_UNIT_NAME@.service" > "$LOOKUP_SERVICE_UNIT_PATH"
+
+    set_conf_value zulip_manage_py "$manage_py" "$CONFIG_FILE"
+    systemctl daemon-reload
+    systemctl enable "$LOOKUP_UNIT_NAME.socket"
+}
+
+choose_lookup_mode() {
+    local confirm
+
+    ensure_config_key zulip_lookup
+    if [ -n "$(get_conf_value zulip_lookup "$CONFIG_FILE")" ]; then
+        return
+    fi
+    ask -r -p "Is this app running on the Zulip server, so it can check Zulip accounts through a small helper service? [y/N] " confirm
+    if confirmed "$confirm"; then
+        install_lookup_helper
+        set_conf_value zulip_lookup helper "$CONFIG_FILE"
+    else
+        set_conf_value zulip_lookup api "$CONFIG_FILE"
+    fi
+}
+
+offer_to_start() {
+    local question="$1" confirm
+    shift
+    ask -r -p "$question [y/N] " confirm
+    if confirmed "$confirm"; then
+        systemctl start "$@"
+        echo "Started."
+        return 0
+    fi
+    return 1
+}
+
+offer_to_restart_service() {
+    local confirm
+    if ! systemctl is-active --quiet "$SERVICE_NAME"; then
+        echo "Changes take effect the next time the $SERVICE_NAME service starts."
+        return 0
+    fi
+    ask -r -p "The $SERVICE_NAME service needs a restart for these changes to take effect. Restart it now? [y/N] " confirm
+    if confirmed "$confirm"; then
+        systemctl restart "$SERVICE_NAME"
+        echo "Restarted."
+    else
+        echo "Run sudo systemctl restart $SERVICE_NAME when you're ready."
     fi
 }
 
@@ -364,6 +453,8 @@ site_kind =
 site_root =
 zulip_site_url =
 zulip_bot_email =
+zulip_lookup =
+zulip_manage_py =
 contact_email =
 alert_emails_enabled =
 smtp_provider =

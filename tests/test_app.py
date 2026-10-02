@@ -364,13 +364,13 @@ def test_invalid_zulip_lookup(make_app):
     assert "The setting 'zulip_lookup' has the value 'database', which isn't valid" in message
 
 
-def test_manage_py_lookup_needs_manage_py(make_app, tmp_path):
-    missing = tmp_path / "manage.py"
+def test_helper_lookup_needs_the_socket(make_app, tmp_path):
+    missing = tmp_path / "lookup.sock"
 
-    message = startup_error(make_app, config={"zulip_lookup": "manage_py", "zulip_manage_py": str(missing)})
+    message = startup_error(make_app, config={"zulip_lookup": "helper", "zulip_lookup_socket": str(missing)})
 
-    assert f"zulip_lookup is 'manage_py' but {missing} was not found" in message
-    make_app(config={"zulip_lookup": "manage_py", "zulip_manage_py": __file__})
+    assert f"zulip_lookup is 'helper' but {missing} was not found" in message
+    make_app(config={"zulip_lookup": "helper", "zulip_lookup_socket": __file__})
 
 
 def test_invalid_body_limit(make_app):

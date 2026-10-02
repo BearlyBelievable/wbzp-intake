@@ -324,7 +324,7 @@ echo
 
 sync_service_units
 
-echo "The $SERVICE_NAME service and its timers are set up but not started."
+echo "The $SERVICE_NAME service and its timers are set up."
 echo "$CHECK_PENDING_UNIT_NAME.timer checks submissions awaiting signup against Zulip daily."
 if bounce_checking_enabled; then
     echo "$CHECK_BOUNCES_UNIT_NAME.timer checks the bounce mailbox hourly."
@@ -342,9 +342,15 @@ start_units="$SERVICE_NAME $CHECK_PENDING_UNIT_NAME.timer"
 if bounce_checking_enabled; then
     start_units="$start_units $CHECK_BOUNCES_UNIT_NAME.timer"
 fi
+if [ "$(get_conf_value zulip_lookup "$CONFIG_FILE")" = "helper" ]; then
+    start_units="$LOOKUP_UNIT_NAME.socket $start_units"
+fi
 
-echo "When you're ready, start everything with:"
-echo
-echo "    sudo systemctl start $start_units"
-echo
+if ! offer_to_start "Do you want to start everything now ($start_units)?" $start_units; then
+    echo
+    echo "When you're ready, start everything with:"
+    echo
+    echo "    sudo systemctl start $start_units"
+    echo
+fi
 echo "The service upgrades the database each time it starts."

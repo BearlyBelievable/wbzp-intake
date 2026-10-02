@@ -1,6 +1,6 @@
 [Unit]
 Description=wbzp-intake backend
-After=network.target
+After=network.target wbzp-intake-lookup.socket
 
 [Service]
 Type=simple
