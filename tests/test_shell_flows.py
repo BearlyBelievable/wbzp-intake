@@ -459,3 +459,55 @@ def test_restart_is_not_offered_when_the_service_is_stopped(shell_app):
     assert result.returncode == 0, result.stderr
     assert "Changes take effect the next time the wbzp-intake service starts." in result.stdout
     assert not any(call.startswith("systemctl restart") for call in shell_app.calls())
+
+
+PROXY_CONFIGS = {
+    "nginx": {
+        "old": "server {\n    listen 443 ssl;\n    location /apply {\n        proxy_pass http://127.0.0.1:8793;\n    }\n}\n",
+        "new": "server {\n    listen 443 ssl;\n    location /intake {\n        proxy_pass http://127.0.0.1:8793;\n    }\n}\n",
+        "commented": "server {\n    # location /intake {\n    #     proxy_pass http://127.0.0.1:8793;\n    # }\n}\n",
+        "unrelated": "server {\n    location /application {\n        proxy_pass http://127.0.0.1:8793;\n    }\n}\n",
+    },
+    "apache": {
+        "old": '<VirtualHost *:443>\n    ProxyPass "/apply" "http://127.0.0.1:8793/apply"\n    ProxyPassReverse "/apply" "http://127.0.0.1:8793/apply"\n</VirtualHost>\n',
+        "new": '<VirtualHost *:443>\n    ProxyPass "/intake" "http://127.0.0.1:8793/intake"\n    ProxyPassReverse "/intake" "http://127.0.0.1:8793/intake"\n</VirtualHost>\n',
+        "commented": '<VirtualHost *:443>\n    # ProxyPass "/intake" "http://127.0.0.1:8793/intake"\n</VirtualHost>\n',
+        "unrelated": '<VirtualHost *:443>\n    ProxyPass "/application" "http://127.0.0.1:8793/application"\n</VirtualHost>\n',
+    },
+    "caddy": {
+        "old": "example.com {\n    handle /apply* {\n        reverse_proxy 127.0.0.1:8793\n    }\n}\n",
+        "new": "example.com {\n    handle /intake* {\n        reverse_proxy 127.0.0.1:8793\n    }\n}\n",
+        "commented": "example.com {\n    # handle /intake* {\n    #     reverse_proxy 127.0.0.1:8793\n    # }\n}\n",
+        "unrelated": "example.com {\n    handle /application* {\n        reverse_proxy 127.0.0.1:8793\n    }\n}\n",
+    },
+}
+
+
+def route_exists(shell_app, kind, text, route):
+    conf = shell_app.root / "site.conf"
+    conf.write_text(text, encoding="utf-8", newline="\n")
+    result = shell_app.run(f"proxy_route_exists {kind} site.conf {route} && echo yes || echo no")
+    return result.stdout.strip() == "yes"
+
+
+@pytest.mark.parametrize("kind", ["nginx", "apache", "caddy"])
+def test_proxy_route_detection_checks_the_specific_route(shell_app, kind):
+    configs = PROXY_CONFIGS[kind]
+
+    assert route_exists(shell_app, kind, configs["new"], "/intake")
+    assert not route_exists(shell_app, kind, configs["old"], "/intake")
+    assert route_exists(shell_app, kind, configs["old"], "/apply")
+    assert not route_exists(shell_app, kind, configs["commented"], "/intake")
+    assert not route_exists(shell_app, kind, configs["unrelated"], "/apply")
+    assert not route_exists(shell_app, kind, configs["unrelated"], "/intake")
+
+
+@pytest.mark.parametrize("kind", ["nginx", "apache", "caddy"])
+def test_old_apply_route_is_renamed_to_intake(shell_app, kind):
+    conf = shell_app.root / "site.conf"
+    conf.write_text(PROXY_CONFIGS[kind]["old"], encoding="utf-8", newline="\n")
+
+    result = shell_app.run(f"rename_proxy_route {kind} site.conf /apply /intake")
+
+    assert result.returncode == 0, result.stderr
+    assert conf.read_text() == PROXY_CONFIGS[kind]["new"]

@@ -1,10 +1,11 @@
 import argparse
+import re
 import sys
 from pathlib import Path
 
 import markdown as markdown_lib
 from jinja2 import Environment, FileSystemLoader
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 GENERATOR_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(GENERATOR_DIR.parent))
@@ -12,6 +13,18 @@ sys.path.insert(0, str(GENERATOR_DIR.parent))
 from intake.config import load_yaml  # noqa: E402
 from intake.errors import ConfigError
 from intake.forms import validate  # noqa: E402
+
+
+LABEL_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+|/[^)\s]*)\)")
+
+
+def label_links(text):
+    return Markup(
+        LABEL_LINK_PATTERN.sub(
+            lambda match: f'<a href="{match.group(2)}" target="_blank" rel="noopener">{match.group(1)}</a>',
+            escape(text),
+        )
+    )
 
 
 def _validate_url(name, value):
@@ -31,6 +44,7 @@ def generate(template, action, css_url, js_url, max_text_length, max_textarea_le
     _validate_url("js_url", js_url)
     env = Environment(loader=FileSystemLoader(GENERATOR_DIR), autoescape=True)
     env.filters["markdown"] = lambda text: Markup(markdown_lib.markdown(text))
+    env.filters["label_links"] = label_links
     jinja_template = env.get_template("template.jinja")
     return jinja_template.render(
         application_fields=template["fields"],

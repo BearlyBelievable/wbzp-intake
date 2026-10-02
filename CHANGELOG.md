@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0
+
+- `install.sh` now checks for the `/intake` route specifically, and offers
+  to rename an old `/apply` route. Before, any existing proxy to port
+  8793 made it skip the step.
+- The form is now greyed out and locked while it submits, and the submit
+  button stays disabled until the request finishes.
+- Field labels can now contain links, written as `[text](url)`.
+- `configure-zulip.sh` now says when a bot can't list channels, as with an
+  Incoming webhook bot, and asks for the channel ID instead of reporting
+  that no channels were found.
+
 ## 2.1.0
 
 - Added a lookup helper for Zulip account checks, for when the app runs

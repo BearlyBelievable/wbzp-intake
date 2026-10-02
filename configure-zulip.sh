@@ -86,23 +86,29 @@ connect_to_zulip() {
 }
 
 choose_zulip_channel() {
-    local bot_email="$1" name channel_id options=() ids=() choice
-    local page_size=15 start=0 total end page_options=() extra=()
+    local bot_email="$1" name channel_id detected options=() ids=() choice
+    local page_size=15 start=0 total end page_options=() extra=() detection_failed=no
 
     if [ -n "$bot_email" ]; then
-        while IFS='|' read -r name channel_id; do
-            [ -n "$channel_id" ] && options+=("$name") && ids+=("$channel_id")
-        done < <(run_zulip_api_python "
+        if detected=$(run_zulip_api_python "
 import os
 from intake.errors import DeliveryError
 from intake.zulip_setup import detect_channels
 try:
     channels = detect_channels(os.environ['ZULIP_SITE_URL'], os.environ['ZULIP_BOT_EMAIL'], os.environ['ZULIP_BOT_API_KEY'])
 except DeliveryError as error:
-    raise SystemExit(f'Could not detect Zulip channels automatically: {error}')
+    if 'incoming webhook' in str(error).lower():
+        raise SystemExit(\"This bot is an Incoming webhook bot, which can't list channels.\")
+    raise SystemExit(f\"Could not list the bot's channels: {error}\")
 for name, channel_id in channels:
     print(f'{name}|{channel_id}')
-" || true)
+"); then
+            while IFS='|' read -r name channel_id; do
+                [ -n "$channel_id" ] && options+=("$name") && ids+=("$channel_id")
+            done <<< "$detected"
+        else
+            detection_failed=yes
+        fi
 
         total="${#ids[@]}"
         if [ "$total" -gt 0 ]; then
@@ -127,10 +133,12 @@ for name, channel_id in channels:
                     break
                 fi
             done
+            echo "If the channel you want isn't listed, add the bot to it in Zulip and run this script again, or enter its ID." >&2
+        elif [ "$detection_failed" = "yes" ]; then
+            echo "Enter the channel's ID instead." >&2
         else
-            echo "Couldn't find any channels the bot has access to yet." >&2
+            echo "The bot isn't subscribed to any channels yet. Add it to the channel you want in Zulip and run this script again, or enter the channel's ID." >&2
         fi
-        echo "If the channel you want isn't listed, add the bot to it in Zulip, then run this script again." >&2
     fi
     ask -r -p "What is the channel ID? (channel's ... menu > Copy link to channel > number after channel/) " choice
     echo "$choice"

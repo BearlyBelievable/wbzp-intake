@@ -113,8 +113,8 @@ apply_reverse_proxy_config() {
         return 1
     fi
 
-    if grep -qF "127.0.0.1:8793" "$site_conf"; then
-        echo "$site_conf already proxies to 127.0.0.1:8793. Skipping."
+    if proxy_route_exists "$kind" "$site_conf" /intake; then
+        echo "$site_conf already proxies /intake to 127.0.0.1:8793. Skipping."
         return 0
     fi
 
@@ -122,16 +122,21 @@ apply_reverse_proxy_config() {
     backup="$SITE_CONFIG_BACKUP_DIR/$(basename "$site_conf").bak.$(date +%s)"
     cp "$site_conf" "$backup"
 
-    line_no=$(grep -n -F "$close_marker" "$site_conf" | tail -1 | cut -d: -f1)
-    if [ -z "$line_no" ]; then
-        echo "Error: couldn't find '$close_marker' in $site_conf." >&2
-        return 1
-    fi
+    if proxy_route_exists "$kind" "$site_conf" /apply; then
+        echo "$site_conf still has the /apply route from an earlier version. It will be renamed to /intake."
+        rename_proxy_route "$kind" "$site_conf" /apply /intake
+    else
+        line_no=$(grep -n -F "$close_marker" "$site_conf" | tail -1 | cut -d: -f1)
+        if [ -z "$line_no" ]; then
+            echo "Error: couldn't find '$close_marker' in $site_conf." >&2
+            return 1
+        fi
 
-    awk -v n="$line_no" -v snippet="$snippet_file" '
-        NR==n { while ((getline line < snippet) > 0) print line }
-        { print }
-    ' "$site_conf" >"${site_conf}.tmp" && mv "${site_conf}.tmp" "$site_conf"
+        awk -v n="$line_no" -v snippet="$snippet_file" '
+            NR==n { while ((getline line < snippet) > 0) print line }
+            { print }
+        ' "$site_conf" >"${site_conf}.tmp" && mv "${site_conf}.tmp" "$site_conf"
+    fi
 
     echo "--- Proposed change to $site_conf ---"
     diff -u "$backup" "$site_conf" || true

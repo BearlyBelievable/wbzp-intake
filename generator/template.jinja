@@ -3,7 +3,7 @@
     {% if field.type == 'boolean' %}
     <fieldset class="wbzp-intake-field-fieldset">
         <legend class="wbzp-intake-field-label">
-            {{ field.label }}{% if field.required %}
+            {{ field.label | label_links }}{% if field.required %}
             <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
             {% endif %}
         </legend>
@@ -32,7 +32,7 @@
     </fieldset>
     {% elif field.type == 'select' %}
     <label for="wbzp-intake-field-{{ field.name }}"
-        >{{ field.label }}{% if field.required %}
+        >{{ field.label | label_links }}{% if field.required %}
         <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
         {% endif %}</label
     >
@@ -50,7 +50,7 @@
     {% elif field.type == 'multiselect' %}
     <fieldset class="wbzp-intake-field-fieldset">
         <legend class="wbzp-intake-field-label">
-            {{ field.label }}{% if field.required %}
+            {{ field.label | label_links }}{% if field.required %}
             <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
             {% endif %}
         </legend>
@@ -73,7 +73,7 @@
     </fieldset>
     {% elif field.type == 'textarea' %}
     <label for="wbzp-intake-field-{{ field.name }}"
-        >{{ field.label }}{% if field.required %}
+        >{{ field.label | label_links }}{% if field.required %}
         <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
         {% endif %}</label
     >
@@ -88,7 +88,7 @@
     ></textarea>
     {% elif field.type == 'number' %}
     <label for="wbzp-intake-field-{{ field.name }}"
-        >{{ field.label }}{% if field.required %}
+        >{{ field.label | label_links }}{% if field.required %}
         <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
         {% endif %}</label
     >
@@ -104,7 +104,7 @@
     />
     {% else %}
     <label for="wbzp-intake-field-{{ field.name }}"
-        >{{ field.label }}{% if field.required %}
+        >{{ field.label | label_links }}{% if field.required %}
         <span class="wbzp-intake-required-marker" aria-hidden="true">*</span>
         {% endif %}</label
     >

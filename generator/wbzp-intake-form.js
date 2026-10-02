@@ -78,8 +78,17 @@
             field.classList.toggle('has-error', ownInvalidInput);
         }
 
+        let state = 'idle';
+
         function updateSubmitAvailability() {
+            if (state !== 'idle') return;
             submitButton.disabled = !form.checkValidity();
+        }
+
+        function setControlsDisabled(disabled) {
+            form.querySelectorAll('input, select, textarea').forEach((control) => {
+                control.disabled = disabled;
+            });
         }
 
         form.addEventListener('focusout', (event) => {
@@ -107,16 +116,21 @@
 
         function showResult(ok, data) {
             message.hidden = false;
+            form.classList.remove('is-submitting');
+            form.removeAttribute('aria-busy');
             if (ok && data && data.success) {
+                state = 'submitted';
                 message.textContent = 'Your submission has been received.';
                 message.className = 'wbzp-intake-message is-success';
                 submitButton.textContent = 'Submitted';
                 return;
             }
+            state = 'idle';
+            setControlsDisabled(false);
             message.textContent = (data && data.error) || 'Something went wrong. Please try again.';
             message.className = 'wbzp-intake-message is-error';
-            submitButton.disabled = false;
             submitButton.textContent = submitButtonText;
+            updateSubmitAvailability();
             if (window.turnstile) {
                 window.turnstile.reset();
             }
@@ -125,16 +139,23 @@
         form.addEventListener('submit', (event) => {
             event.preventDefault();
 
+            if (state !== 'idle') return;
+
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
 
+            const body = new FormData(form);
+            state = 'submitting';
+            form.classList.add('is-submitting');
+            form.setAttribute('aria-busy', 'true');
+            setControlsDisabled(true);
             submitButton.disabled = true;
             submitButton.textContent = 'Submitting…';
             message.hidden = true;
 
-            fetch(form.action, { method: 'POST', body: new FormData(form) })
+            fetch(form.action, { method: 'POST', body })
                 .then((response) => {
                     return response.json().then((data) => {
                         showResult(response.ok, data);

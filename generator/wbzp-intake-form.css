@@ -4,6 +4,11 @@
     gap: 28px;
 }
 
+.wbzp-intake-form.is-submitting {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .wbzp-intake-form .wbzp-intake-btn {
     margin-top: 0;
 }

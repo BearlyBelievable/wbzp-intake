@@ -154,3 +154,36 @@ def test_invalid_template_exits(templates, name, text, message):
         run_main(templates)
 
     assert message in str(caught.value)
+
+
+def test_label_links():
+    field = {
+        "name": "agree",
+        "type": "multiselect",
+        "required": True,
+        "label": "Read the [Rules](https://example.com/rules/) and the [Terms](/terms/) <b>first</b>",
+        "note": {},
+        "options": {"I agree": {}},
+    }
+
+    html = render([field])
+
+    assert '<a href="https://example.com/rules/" target="_blank" rel="noopener">Rules</a>' in html
+    assert '<a href="/terms/" target="_blank" rel="noopener">Terms</a>' in html
+    assert "&lt;b&gt;first&lt;/b&gt;" in html
+    assert "<b>first</b>" not in html
+
+
+def test_label_links_only_accept_web_addresses():
+    field = {
+        "name": "agree",
+        "type": "text",
+        "required": True,
+        "label": "See [this](javascript:alert(1)) and [that](data:text/html;base64,AAAA)",
+        "note": {},
+    }
+
+    html = render([field])
+
+    assert "<a " not in html
+    assert "[this](javascript:alert(1))" in html

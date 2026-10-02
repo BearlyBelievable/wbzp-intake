@@ -91,7 +91,8 @@ them to your site yourself.
 ### Reverse proxy (optional)
 
 Detects nginx, Apache, or Caddy and offers to wire up the `/intake`
-route for you. It keeps a backup of your site config in
+route for you, or to rename an old `/apply` route from an earlier
+version. It keeps a backup of your site config in
 `instance/backups/site-config/` before changing it. If you'd rather
 set it up by hand, skip this and use the examples in
 `deploy/reverse-proxy/`.
@@ -351,7 +352,7 @@ Every field requires these keys to be valid:
 |---|---|---|
 | `name` | `string` | Form field name. Must be unique across the whole file. |
 | `type` | `number`, `text`, `email`, `textarea`, `select`, `multiselect`, or `boolean` | The kind of field. |
-| `label` | `string` | The question shown to the submitter. |
+| `label` | `string` | The question shown to the submitter. Write a link as `[text](url)`. |
 | `required` | `boolean` | Whether the field must be filled in. |
 | `note` | `dict` | A callout shown under the field. |
 

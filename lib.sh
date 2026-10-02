@@ -113,6 +113,29 @@ sync_service_units() {
     fi
 }
 
+proxy_route_pattern() {
+    local kind="$1" route="$2"
+    case "$kind" in
+        nginx) echo "^[[:space:]]*location[[:space:]]+${route}(/|[[:space:]]|\\{)" ;;
+        apache) echo "^[[:space:]]*ProxyPass[[:space:]]+\"?${route}\"?[[:space:]]" ;;
+        caddy) echo "^[[:space:]]*handle[[:space:]]+${route}" ;;
+    esac
+}
+
+proxy_route_exists() {
+    local kind="$1" file="$2" route="$3"
+    grep -qE "$(proxy_route_pattern "$kind" "$route")" "$file" && grep -qF "127.0.0.1:8793" "$file"
+}
+
+rename_proxy_route() {
+    local kind="$1" file="$2" old="$3" new="$4"
+    case "$kind" in
+        nginx) sed -i -E "s#^([[:space:]]*location[[:space:]]+)${old}([[:space:]/{])#\\1${new}\\2#" "$file" ;;
+        apache) sed -i -E "/^[[:space:]]*ProxyPass(Reverse)?[[:space:]].*127\\.0\\.0\\.1:8793/ s#${old}#${new}#g" "$file" ;;
+        caddy) sed -i -E "s#^([[:space:]]*handle[[:space:]]+)${old}#\\1${new}#" "$file" ;;
+    esac
+}
+
 ensure_config_key() {
     if ! grep -q "^$1[[:space:]]*=" "$CONFIG_FILE"; then
         printf '%s =\n' "$1" >> "$CONFIG_FILE"
